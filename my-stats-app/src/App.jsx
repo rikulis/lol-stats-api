@@ -1,33 +1,80 @@
 import React, { useState } from 'react';
-//import SummonerProfile from './SummonerProfile';
 import axios from 'axios';
-const App = () => {
-  const [searchText, setSearchText] = useState("");
-  const [playerData, setPlayerData] = useState({});
-  const API_KEY = "";
+import {
+  ChakraProvider,
+  Box,
+  VStack,
+  Select,
+} from '@chakra-ui/react';
 
-  function searchForPlayer(event) {
-    var APICallString = "https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + searchText + "?api_key=" + API_KEY;
-    axios.get(APICallString).then(function (response) {
-      setPlayerData(response.data);
-    }).catch(function (error) {
-      console.log(error)
-    });
-  }
-  console.log(playerData)
+import SearchForm from './MyComponents/SearchForm';
+import PlayerInfo from './MyComponents/PlayerInfo';
+import RankedInfo from './MyComponents/RankedInfo';
+import ErrorMessage from './MyComponents/ErrorMessage';
+import RegionSelector from './MyComponents/RegionSelector';
+import theme from './chakra-theme';
+
+const App = () => {
+  const [playerData, setPlayerData] = useState({});
+  const [rankedData, setRankedData] = useState([]);
+  const [error, setError] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState('na1'); // Default region: NA
+
+  const API_KEY = "RGAPI-88dfe350-eeed-4c34-9953-8c351c56e005"; // Add your Riot Games API key here
+
+  const searchForPlayer = (searchText) => {
+    if (!API_KEY) {
+      setError("API key is missing. Please add your Riot Games API key.");
+      return;
+    }
+
+    // Reset previous data
+    setPlayerData({});
+    setRankedData([]);
+    setError(null);
+
+    const summonerAPI = `https://${selectedRegion}.api.riotgames.com/lol/summoner/v4/summoners/by-name/${searchText}?api_key=${API_KEY}`;
+
+    axios.get(summonerAPI)
+      .then((response) => {
+        setPlayerData(response.data);
+        // Fetch ranked information after retrieving summoner data
+        fetchRankedInformation(response.data.id);
+      })
+      .catch((error) => {
+        setPlayerData({});
+        setError("Player not found or an error occurred. Please try again.");
+        console.error(error);
+      });
+  };
+
+  const fetchRankedInformation = (summonerId) => {
+    const rankedAPI = `https://${selectedRegion}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}?api_key=${API_KEY}`;
+
+    axios.get(rankedAPI)
+      .then((response) => {
+        setRankedData(response.data);
+      })
+      .catch((error) => {
+        setRankedData([]);
+        console.error("Error fetching ranked information:", error);
+      });
+  };
+
+  const handleRegionChange = (event) => {
+    setSelectedRegion(event.target.value);
+  };
+
   return (
-    <div>
-      <input type="text" onChange={e => setSearchText(e.target.value)}></input>
-     <button onClick={e => searchForPlayer(e)}>Search</button>
-     {JSON.stringify(playerData) != '{}' ? 
-     <>
-     <p>{playerData.name}</p>
-     <img width="100" height="100" src={'https://ddragon.leagueoflegends.com/cdn/13.24.1/img/profileicon/' + playerData.profileIconId + '.png'}></img>
-     <p>Summoner level {playerData.summonerLevel}</p>
-     </>
-      : 
-      <><p>No player data</p></>}
-    </div>
+    <ChakraProvider theme={theme}> 
+      <Box maxW="1280px" m="0 auto" p="2rem" textAlign="center" bg="brand.50">
+      <RegionSelector selectedRegion={selectedRegion} onRegionChange={handleRegionChange} />
+        <SearchForm onSearch={searchForPlayer} />
+        {error && <ErrorMessage error={error} />}
+        {Object.keys(playerData).length !== 0 && <PlayerInfo playerData={playerData} />}
+        {rankedData.length !== 0 && <RankedInfo rankedData={rankedData} />}
+      </Box>
+    </ChakraProvider>
   );
 };
 
